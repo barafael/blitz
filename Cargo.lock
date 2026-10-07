@@ -10813,3 +10813,58 @@ dependencies = [
  "syn 3.0.6",
  "winnow 1.0.4",
 ]
+
+[[patch.unused]]
+name = "selectors"
+version = "0.41.0"
+source = "git+https://github.com/dfrg/stylo?branch=style-more#b2a820dbbcfc067dca0489a30d4fb444f91b29bc"
+
+[[patch.unused]]
+name = "servo_arc"
+version = "0.5.0"
+source = "git+https://github.com/dfrg/stylo?branch=style-more#b2a820dbbcfc067dca0489a30d4fb444f91b29bc"
+
+[[patch.unused]]
+name = "stylo"
+version = "0.22.0"
+source = "git+https://github.com/dfrg/stylo?branch=style-more#b2a820dbbcfc067dca0489a30d4fb444f91b29bc"
+
+[[patch.unused]]
+name = "stylo_atoms"
+version = "0.22.0"
+source = "git+https://github.com/dfrg/stylo?branch=style-more#b2a820dbbcfc067dca0489a30d4fb444f91b29bc"
+
+[[patch.unused]]
+name = "stylo_derive"
+version = "0.22.0"
+source = "git+https://github.com/dfrg/stylo?branch=style-more#b2a820dbbcfc067dca0489a30d4fb444f91b29bc"
+
+[[patch.unused]]
+name = "stylo_dom"
+version = "0.22.0"
+source = "git+https://github.com/dfrg/stylo?branch=style-more#b2a820dbbcfc067dca0489a30d4fb444f91b29bc"
+
+[[patch.unused]]
+name = "stylo_malloc_size_of"
+version = "0.22.0"
+source = "git+https://github.com/dfrg/stylo?branch=style-more#b2a820dbbcfc067dca0489a30d4fb444f91b29bc"
+
+[[patch.unused]]
+name = "stylo_static_prefs"
+version = "0.22.0"
+source = "git+https://github.com/dfrg/stylo?branch=style-more#b2a820dbbcfc067dca0489a30d4fb444f91b29bc"
+
+[[patch.unused]]
+name = "stylo_traits"
+version = "0.22.0"
+source = "git+https://github.com/dfrg/stylo?branch=style-more#b2a820dbbcfc067dca0489a30d4fb444f91b29bc"
+
+[[patch.unused]]
+name = "to_shmem"
+version = "0.6.0"
+source = "git+https://github.com/dfrg/stylo?branch=style-more#b2a820dbbcfc067dca0489a30d4fb444f91b29bc"
+
+[[patch.unused]]
+name = "to_shmem_derive"
+version = "0.2.0"
+source = "git+https://github.com/dfrg/stylo?branch=style-more#b2a820dbbcfc067dca0489a30d4fb444f91b29bc"
