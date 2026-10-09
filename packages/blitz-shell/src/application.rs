@@ -3,9 +3,10 @@ use crate::event::{BlitzShellEvent, BlitzShellProxy};
 use anyrender::WindowRenderer;
 use std::collections::HashMap;
 use std::sync::mpsc::Receiver;
+use web_time::Instant;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
-use winit::event_loop::ActiveEventLoop;
+use winit::event_loop::{ActiveEventLoop, ControlFlow};
 use winit::window::WindowId;
 
 use winit::{
@@ -24,6 +25,8 @@ pub struct BlitzApplication<Rend: WindowRenderer> {
     pub proxy: BlitzShellProxy,
     pub event_queue: Receiver<BlitzShellEvent>,
     pending_clipboard: HashMap<AsyncRequestSerial, WindowId>,
+    /// The deadline the event loop was last set to wake at, for a document's text input.
+    waiting_until: Option<Instant>,
 }
 
 impl<Rend: WindowRenderer> BlitzApplication<Rend> {
@@ -34,6 +37,7 @@ impl<Rend: WindowRenderer> BlitzApplication<Rend> {
             proxy,
             event_queue,
             pending_clipboard: HashMap::new(),
+            waiting_until: None,
         }
     }
 
@@ -223,12 +227,38 @@ impl<Rend: WindowRenderer> ApplicationHandler for BlitzApplication<Rend> {
         Some(self)
     }
 
-    #[cfg(target_os = "ios")]
-    fn about_to_wait(&mut self, _event_loop: &dyn ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
+        #[cfg(target_os = "ios")]
         for view in self.windows.values_mut() {
             if view.ios_request_redraw.get() {
                 view.window.request_redraw();
             }
+        }
+
+        // Wake for the next change a document makes on its own to a text input, such as a
+        // password field masking the character it shows in the clear: redraw a document whose
+        // time has come, and sleep until the earliest other.
+        let now = Instant::now();
+        let mut next: Option<Instant> = None;
+        for view in self.windows.values() {
+            let Some(deadline) = view.doc.inner().text_input_deadline() else {
+                continue;
+            };
+            if deadline <= now {
+                view.request_redraw();
+            } else {
+                next = Some(next.map_or(deadline, |next| next.min(deadline)));
+            }
+        }
+        match next {
+            Some(deadline) => {
+                event_loop.set_control_flow(ControlFlow::WaitUntil(deadline));
+                self.waiting_until = Some(deadline);
+            }
+            None if self.waiting_until.take().is_some() => {
+                event_loop.set_control_flow(ControlFlow::Wait);
+            }
+            None => {}
         }
     }
 }
