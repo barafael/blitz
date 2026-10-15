@@ -10367,7 +10367,6 @@ dependencies = [
  "image",
  "log",
  "markup5ever",
- "mimalloc",
  "os_info",
  "owo-colors",
  "peniko",
