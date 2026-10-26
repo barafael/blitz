@@ -2,13 +2,14 @@
 //! text backend the build selects: typing, deletion, word motion, selection, the clipboard, undo
 //! and text an input method is composing.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use blitz_dom::text::{BACKEND, EditableText as _, TextBackend};
 use blitz_dom::{DocumentConfig, NodeId};
 use blitz_html::{HtmlDocument, HtmlProvider};
 use blitz_test_harness::Harness;
-use blitz_traits::events::BlitzImeEvent;
+use blitz_traits::events::{BlitzImeEvent, UiEvent};
 use blitz_traits::shell::{ClipboardError, ColorScheme, ShellProvider, Viewport};
 use keyboard_types::{Key, Modifiers, NamedKey};
 
@@ -19,19 +20,31 @@ const ACTION: Modifiers = if cfg!(target_os = "macos") {
     Modifiers::CONTROL
 };
 
-/// A shell whose clipboard is a string.
+/// A shell whose clipboard is a string, and which counts the requests for its text: the shell
+/// delivers the text later, as a paste event.
 #[derive(Default)]
-struct Clipboard(Mutex<String>);
+struct Clipboard(Mutex<String>, AtomicUsize);
 
 impl ShellProvider for Clipboard {
-    fn get_clipboard_text(&self) -> Result<String, ClipboardError> {
-        Ok(self.0.lock().unwrap().clone())
+    fn request_clipboard_text(&self) -> Result<(), ClipboardError> {
+        self.1.fetch_add(1, Ordering::SeqCst);
+        Ok(())
     }
 
     fn set_clipboard_text(&self, text: String) -> Result<(), ClipboardError> {
         *self.0.lock().unwrap() = text;
         Ok(())
     }
+}
+
+/// Pastes: the paste shortcut asks the shell for the clipboard's text, which the shell then
+/// delivers as a paste event.
+fn paste(harness: &mut Harness, clipboard: &Clipboard) {
+    let requests = clipboard.1.load(Ordering::SeqCst);
+    harness.press_with(Key::Character("v".into()), ACTION);
+    assert_eq!(clipboard.1.load(Ordering::SeqCst), requests + 1);
+    let text = clipboard.0.lock().unwrap().clone();
+    harness.dispatch(UiEvent::Paste(text));
 }
 
 /// A focused `<input>` holding `value`, with the caret at its end, and the clipboard its
@@ -227,7 +240,7 @@ fn copy_cut_and_paste_go_through_the_clipboard() {
     assert_eq!(value(&harness, node), "hello ");
 
     harness.press(Key::Named(NamedKey::Home));
-    harness.press_with(Key::Character("v".into()), ACTION);
+    paste(&mut harness, &clipboard);
     assert_eq!(value(&harness, node), "worldhello ");
     assert_eq!(selection(&harness, node), 5..5);
 }
@@ -237,7 +250,7 @@ fn paste_replaces_the_selection() {
     let (mut harness, node, clipboard) = input("abc");
     *clipboard.0.lock().unwrap() = "xyz".into();
     harness.press_with(Key::Character("a".into()), ACTION);
-    harness.press_with(Key::Character("v".into()), ACTION);
+    paste(&mut harness, &clipboard);
     assert_eq!(value(&harness, node), "xyz");
 }
 

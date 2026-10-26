@@ -4,12 +4,14 @@
 //! optionally the character typed last is shown in the clear for a while, as iOS and Android
 //! show it.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use blitz_dom::text::EditableText as _;
 use blitz_dom::{DocumentConfig, NodeId};
 use blitz_html::{HtmlDocument, HtmlProvider};
 use blitz_test_harness::Harness;
+use blitz_traits::events::UiEvent;
 use blitz_traits::navigation::{NavigationOptions, NavigationProvider};
 use blitz_traits::shell::{ClipboardError, ColorScheme, ShellProvider, Viewport};
 use keyboard_types::{Key, Modifiers, NamedKey};
@@ -21,19 +23,31 @@ const ACTION: Modifiers = if cfg!(target_os = "macos") {
     Modifiers::CONTROL
 };
 
-/// A shell whose clipboard is a string.
+/// A shell whose clipboard is a string, and which counts the requests for its text: the shell
+/// delivers the text later, as a paste event.
 #[derive(Default)]
-struct Clipboard(Mutex<String>);
+struct Clipboard(Mutex<String>, AtomicUsize);
 
 impl ShellProvider for Clipboard {
-    fn get_clipboard_text(&self) -> Result<String, ClipboardError> {
-        Ok(self.0.lock().unwrap().clone())
+    fn request_clipboard_text(&self) -> Result<(), ClipboardError> {
+        self.1.fetch_add(1, Ordering::SeqCst);
+        Ok(())
     }
 
     fn set_clipboard_text(&self, text: String) -> Result<(), ClipboardError> {
         *self.0.lock().unwrap() = text;
         Ok(())
     }
+}
+
+/// Pastes: the paste shortcut asks the shell for the clipboard's text, which the shell then
+/// delivers as a paste event.
+fn paste(harness: &mut Harness, clipboard: &Clipboard) {
+    let requests = clipboard.1.load(Ordering::SeqCst);
+    harness.press_with(Key::Character("v".into()), ACTION);
+    assert_eq!(clipboard.1.load(Ordering::SeqCst), requests + 1);
+    let text = clipboard.0.lock().unwrap().clone();
+    harness.dispatch(UiEvent::Paste(text));
 }
 
 /// A navigation provider that keeps the URL a form submits to.
@@ -119,7 +133,7 @@ fn copy_and_cut_are_blocked() {
     assert_eq!(*clipboard.0.lock().unwrap(), "before");
     assert_eq!(value(&harness, node), "secret");
     assert_eq!(selection(&harness, node), 0..6);
-    harness.press_with(Key::Character("v".into()), ACTION);
+    paste(&mut harness, &clipboard);
     assert_eq!(value(&harness, node), "before");
 }
 
@@ -196,7 +210,7 @@ fn a_form_submits_the_text() {
 mod winkin_masks {
     use std::time::Duration;
 
-    use blitz_traits::events::BlitzImeEvent;
+    use blitz_traits::events::{BlitzImeEvent, UiEvent};
     use keyboard_types::Key;
 
     use super::*;
@@ -327,7 +341,7 @@ mod winkin_masks {
 
         harness.type_text("c");
         *clipboard.0.lock().unwrap() = "d".into();
-        harness.press_with(Key::Character("v".into()), ACTION);
+        paste(&mut harness, &clipboard);
         assert_eq!(drawn(&harness, node), discs(3));
         assert_eq!(harness.base().text_input_deadline(), None);
 
